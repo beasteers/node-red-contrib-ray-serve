@@ -1,0 +1,420 @@
+<script type="text/javascript">
+    RED.nodes.registerType('rayConfig', {
+        category: 'config',
+        icon: "ray-logo.svg",
+        defaults: {
+            rayAddress: { value: 'http://ray:8265', required: true },
+            rayAddressType: { value: 'str' },
+            serveAddress: { value: 'http://ray:8000', required: true },
+            serveAddressType: { value: 'str' },
+        },
+        label: function () {
+            return 'Ray Server';
+        },
+        labelStyle: function () {
+            return 'node_label_italic';
+        },
+        oneditprepare: function () {
+            $('#node-config-input-rayAddress').typedInput({
+				default: this.rayAddressType,
+				types: ['str', 'global', 'env'],
+			});
+            $('#node-config-input-serveAddress').typedInput({
+				default: this.serveAddressType,
+				types: ['str', 'global', 'env'],
+			});
+        },
+    });
+</script>
+
+<script type="text/html" data-template-name="rayConfig">
+    <div class="form-row">
+        <label for="node-config-input-rayAddress">
+            <span>Ray Address</span>
+        </label>
+        <input type="text" id="node-config-input-rayAddress" placeholder="http://localhost:8065" />
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-serveAddress">
+            <span>Ray GCS Address</span>
+        </label>
+        <input type="text" id="node-config-input-serveAddress" placeholder="http://localhost:8000" />
+    </div>
+</script>
+
+
+
+<script type="text/javascript">
+
+    const extractServeDeployments = (code) => {
+        const regex = /@serve\.deployment(\([^)]*\))?\s*(?:\s*[#@].*\n)*\s*class\s+(\w+):/g;
+        return [...code.matchAll(regex)].map(([, deploymentArgs, name]) => {
+            return { name, ...parseDeploymentArgs(deploymentArgs) };
+        });
+    }
+
+    const parseDeploymentArgs = (deploymentArgs) => {
+        // Remove parentheses and split by commas
+        // Convert key-value pairs into an object
+        return deploymentArgs && deploymentArgs.slice(1, -1).split(/\s*,\s*/).reduce((acc, arg) => {
+            const [key, value] = arg.split('=');
+            acc[key.trim()] = JSON.parse(value.trim());
+            return acc;
+        }, {});
+    }
+
+//     const code = `
+// from starlette.requests import Request
+// from ray import serve
+// from transformers import pipeline
+
+// @serve.deployment
+// class Translator:
+//     def __init__(self):
+//         # Load model
+//         self.model = pipeline("translation_en_to_fr", model="t5-small")
+
+//     def translate(self, text: str) -> str:
+//         # Run inference and return the translation text
+//         translation = self.model(text)[0]["translation_text"]
+//         return translation
+
+//     async def __call__(self, http_request: Request) -> str:
+//         english_text: str = await http_request.json()
+//         return self.translate(summary)
+                
+// app = Translator.bind()`
+const code = `
+from ray import serve
+
+@serve.deployment
+class HelloWorld:
+    async def __call__(self, http_request) -> str:
+        msg: dict = await http_request.json()
+        return {"payload": "Hello from ray!", "received": msg}
+                
+app = HelloWorld.bind()`
+
+    RED.nodes.registerType('ray serve', {
+        category: 'function',
+        color: '#3c8ae9',
+        inputs: 1,
+        outputs: 1,
+        icon: "ray-logo.svg",
+        defaults: {
+            server: {
+				type: 'rayConfig',
+				required: true,
+			},
+            name: { value: 'serve-app', required: true },
+            route_prefix: { value: '/' },
+            variable_name: { value: 'app' },
+            // runtime_env: { value: {} },
+            // container: { value: '' },
+            package_manager: { value: 'pip' },
+            dependencies: { value: [] },
+            env_vars: { value: [] },
+            code: { value: code.trim() },
+            deployments: { value: extractServeDeployments(code) },
+            // Add default values for other fields as needed
+        },
+        label: function () {
+            return this.name;
+        },
+        labelStyle: function () {
+            return 'node_label_italic';
+        },
+        oneditprepare: function() {
+            $("#ray-dashboard-link").on('click', function() {
+                let name = $('#node-input-name').val();
+                window.open(`http://localhost:8265/#/serve/applications/${name}`, '_blank').focus();
+            });
+            
+            this.editor = RED.editor.createEditor({
+                id: 'node-input-ray-serve-editor',
+                mode: 'ace/mode/python',
+                value: this.code || "",
+                // stateId: stateId,
+                focus: true,
+                // extraLibs: extraLibs
+            });
+            this.editor.onDidChangeModelContent((event) => {
+                render();
+            });
+
+            const moduleExamples = ['numpy', 'torch>=2.0.0', 'pandas[postgresql]', 'requests', 'scipy', 'transformers', 'librosa']
+            this.pipList = $("#node-input-dependencies-x").editableList({
+                addItem: function(row, index, data) {
+                    console.log(index, data)
+                    let example = moduleExamples[index % moduleExamples.length];
+                    let pkg = $(`<input type="text" class="node-input-item-name" placeholder="e.g. ${example}" />`).attr('value', data.name);
+                    $(row).append(pkg);
+                },
+                removable: true,
+            });
+            for(let data of this.dependencies) {
+                this.pipList.editableList('addItem', data)
+            }
+
+            this.envList = $("#node-input-env_vars-x").editableList({
+                addItem: function(row, index, data) {
+                    $(`<input class='node-input-key' type="text" />`).appendTo(row).attr('value', data.key)
+                    $(`<input class='node-input-value' />`).appendTo(row).attr('value', data.value).typedInput({
+                        defaultType: data.type || 'str',
+                        types: ['flow','global','str','num','jsonata','env'],
+                    });
+                },
+                removable: true,
+            });
+            for(let data of this.env_vars) {
+                this.envList.editableList('addItem', data)
+            }
+
+            this.deploymentList = $("#node-input-deployments-x").editableList({
+                addItem: function(row, index, data) {
+                    $(`<input class='node-input-key' type="text" />`).appendTo(row).attr('value', JSON.stringify(data)).typedInput({
+                        type:"json",
+                        types:["json"]
+                    })
+                    // $(`<input class='node-input-value' />`).appendTo(row).attr('value', data.value).typedInput({
+                    //     defaultType: data.type || 'str',
+                    //     types: ['flow','global','str','num','jsonata','env'],
+                    // });
+                },
+                removable: true,
+            });
+            for(let data of this.deployments) {
+                this.deploymentList.editableList('addItem', data)
+            }
+
+            // Tabs
+
+            var tabs = RED.tabs.create({
+                id: "ray-tabs",
+                onchange: function(tab) {
+                    $("#ray-tabs-content").children().hide();
+                    $("#" + tab.id).show();
+                }
+            });
+            // tabs.addTab({
+            //     id: "func-tab-config",
+            //     iconClass: "fa fa-cog",
+            //     label: that._("function.label.setup")
+            // });
+            tabs.addTab({
+                id: "ray-tab-app",
+                label: "Application"
+            });
+            tabs.addTab({
+                id: "ray-tab-deps",
+                label: "Environment"
+            });
+
+            tabs.activateTab("ray-tab-app");
+        },
+        oneditsave: function() {
+            let node = this;
+            this.code = this.editor.getValue();
+            this.editor.destroy();
+            delete this.editor;
+            node.dependencies = [];
+            $("#node-input-dependencies-x").editableList('items').each(function(i) {
+                let name = $(this).find(".node-input-item-name").val()
+                name && node.dependencies.push({ name })
+            })
+            node.env_vars = [];
+            $("#node-input-env_vars-x").editableList('items').each(function(i) {
+                let key = $(this).find(".node-input-value").attr('value');
+                let type = $(this).find(".node-input-value").typedInput('type');
+                let value = $(this).find(".node-input-value").typedInput('value');
+                key && node.env_vars.push({ key, type, value });
+            })
+            // node.deployments = [];
+            // $("#node-input-deployments-x").editableList('items').each(function(i) {
+            //     let key = $(this).find(".node-input-value").attr('value');
+            //     let type = $(this).find(".node-input-value").typedInput('type');
+            //     let value = $(this).find(".node-input-value").typedInput('value');
+            //     key && node.deployments.push({ key, type, value });
+            // })
+            node.deployments = extractServeDeployments(node.code);
+            delete this.pipList;
+            delete this.envList;
+            delete this.deploymentList;
+
+        },
+        oneditcancel: function() {
+            this.editor.destroy();
+            delete this.editor;
+        },
+    });
+</script>
+
+<script type="text/html" data-template-name="ray serve">
+    <style>
+        #ray-tabs-content .red-ui-editableList-container {
+            padding: 0px;
+            border: 0;
+        }
+        #ray-tabs-content .red-ui-editableList-container li {
+            padding:0px;
+        }
+        #ray-tabs-content .red-ui-editableList-item-remove {
+            right: 5px;
+        }
+
+        #ray-tabs-content .node-input-list-row > label {
+            width: 100%;
+            font-size: 1em;
+            font-weight: 700;
+            margin: 0 0 0 4px;
+        }
+        #ray-tabs-content .node-input-list-row .red-ui-editableList-container input {
+            width: auto;
+            border-radius: 0;
+        }
+        #ray-tabs-content .red-ui-editableList-container .red-ui-editableList-list li:not(:first-child) input {
+            border-top: 0;
+        }
+
+        #ray-tabs-content .red-ui-editableList-container li {
+            border-bottom: 0px;
+        }
+
+        #ray-tabs-content .red-ui-editableList-item-content {
+            display: flex;
+            justify-content: stretch;
+        }
+        #ray-tabs-content .red-ui-editableList-item-content > * {
+            flex-grow: 1;
+        }
+        #node-input-env_vars-x .red-ui-typedInput-container {
+            border-radius: 0;
+        }
+        #ray-tabs-content .red-ui-editableList-container input {
+            width: auto;
+        }
+        
+        /* #node-input-libs-container-row .red-ui-editableList-header {
+            display: flex;
+            background: var(--red-ui-tertiary-background);
+            padding-right: 75px;
+            border-top-left-radius: 3px;
+            border-top-right-radius: 3px;
+        }
+        #node-input-libs-container-row .red-ui-editableList-header > div {
+            flex-grow: 1;
+        } */
+
+        /* .node-libs-entry {
+            display: flex;
+        }
+
+        .node-libs-entry .red-ui-typedInput-container {
+            border-radius: 0;
+            border: none;
+        }
+        .node-libs-entry .red-ui-typedInput-type-select {
+            border-radius: 0 !important;
+            height: 34px;
+        }
+        .node-libs-entry > span > input[type=text] {
+            border-radius: 0;
+            border-top-color: var(--red-ui-form-background);
+            border-bottom-color: var(--red-ui-form-background);
+            border-right-color: var(--red-ui-form-background);
+        }
+        .node-libs-entry > span > input[type=text].input-error {
+        }
+        .node-libs-entry > span {
+            flex-grow: 1;
+            width: 50%;
+            position: relative;
+        }
+        .node-libs-entry span .node-input-libs-var, .node-libs-entry span .red-ui-typedInput-container {
+            width: 100%;
+        }
+        .node-libs-entry > span > span > i {
+            display: none;
+        }
+        .node-libs-entry > span > span.input-error > i {
+            display: inline;
+        } */
+
+    </style>
+    <button id="ray-dashboard-link">Dashboard</button>
+    <div class="form-row ray-tabs-row">
+        <ul style="min-width: 600px; margin-bottom: 20px;" id="ray-tabs"></ul>
+    </div>
+    <div id="ray-tabs-content" style="min-height: calc(100% - 95px);">
+        <div id="ray-tab-app" style="display:none">
+            <div class="form-row">
+                <label for="node-input-name">
+                    <span>Application Name</span>
+                </label>
+                <input type="text" id="node-input-name" />
+            </div>
+            <div class="form-row">
+                <label for="node-input-name">
+                    <span>Server</span>
+                </label>
+                <input type="text" id="node-input-server" />
+            </div>
+            <div class="form-row">
+                <label for="node-input-route_prefix">
+                    <span>Route Prefix</span>
+                </label>
+                <input type="text" id="node-input-route_prefix" />
+            </div>
+            <div id="func-tab-body">
+                <div class="form-row node-text-editor-row" style="position:relative">
+                    <div style="height: 400px; min-height:150px;" class="node-text-editor" id="node-input-ray-serve-editor" ></div>
+                </div>
+            </div>
+            <div class="form-row">
+                <label for="node-input-variable_name">
+                    <span>App Variable</span>
+                </label>
+                <input type="text" id="node-input-variable_name" />
+            </div>
+            <div class="form-row node-input-list-row">
+                <label for="node-input-deployments-x">
+                    <span>Deployments</span>
+                </label>
+                <ol id="node-input-deployments-x"></ol>
+            </div>
+
+        </div>
+
+        <div id="ray-tab-deps" style="display:none">
+            <!-- <div class="form-row">
+                <label for="node-input-name">
+                    <span>Container Image</span>
+                </label>
+                <input type="text" id="node-input-container" />
+            </div> -->
+            <div class="form-row">
+                <label for="node-input-package_manager">
+                    <span>Package Manager</span>
+                </label>
+                <select id="node-input-package_manager">
+                    <option value="pip">pip</option>
+                    <option value="conda">conda</option>
+                </select>
+            </div>
+            <div class="form-row node-input-list-row">
+                <label for="node-input-dependencies-x">
+                    <span>Dependencies</span>
+                    <small>[<a href="https://docs.ray.io/en/latest/ray-core/handling-dependencies.html#using-conda-or-pip-packages">docs</a>]</small>
+                </label>
+                <ol id="node-input-dependencies-x"></ol>
+            </div>
+            <div class="form-row node-input-list-row">
+                <label for="node-input-env_vars-x">
+                    <span>Environment Variables</span>
+                </label>
+                <ol id="node-input-env_vars-x"></ol>
+            </div>
+        </div>
+    </div>
+    
+</script>

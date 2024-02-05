@@ -1,0 +1,30 @@
+{
+  "name": "@bea.steers/node-red-contrib-ray-jobs",
+  "version": "0.0.1",
+  "description": "Submit ray jobs from Node-RED",
+  "main": "lib/ray.js",
+  "scripts": {},
+  "node-red": {
+    "nodes": {
+      "ray serve": "lib/ray.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beasteers/node-red-contrib-ray-jobs.git"
+  },
+  "keywords": [
+    "node-red",
+    "ray",
+    "cluster"
+  ],
+  "author": "beasteers",
+  "license": "MIT",
+  "homepage": "https://github.com/beasteers/node-red-contrib-ray-jobs",
+  "devDependencies": {
+    "node-red": "^3.1.3"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}

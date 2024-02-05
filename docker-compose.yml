@@ -1,0 +1,36 @@
+
+services:
+  nodered:
+    build: 
+      context: .
+    image: nodered-ray
+    container_name: nodered-ray
+    restart: unless-stopped
+    ports:
+      - 1881:1880
+    environment:
+      RAY_ADDRESS: ray:10001
+      RAY_GCS_ADDRESS: ray:6739
+    volumes:
+      - ./data:/data
+      - ./config/settings.js:/data/settings.js
+      - .:/usr/src/node-red/node-red-contrib-ray-jobs
+
+  ray:
+    image: rayproject/ray:nightly-cpu-aarch64 #-ml
+    container_name: nr-ray-cluster
+    ports:
+      - 10001:10001  # client
+      - 6379:6379  # gcs
+      - 8265:8265  # dashboard
+      - 8000:8000  # serve
+    privileged: true
+    command: bash -c "ray start --dashboard-host=0.0.0.0 --head --block"
+    volumes:
+      - /dev/shm:/dev/shm
+    shm_size: 2g
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: '2g'
