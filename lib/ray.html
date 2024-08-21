@@ -30,13 +30,13 @@
 <script type="text/html" data-template-name="rayConfig">
     <div class="form-row">
         <label for="node-config-input-rayAddress">
-            <span>Ray Address</span>
+            <span>Ray API Address (default is port 8065)</span>
         </label>
         <input type="text" id="node-config-input-rayAddress" placeholder="http://localhost:8065" />
     </div>
     <div class="form-row">
         <label for="node-config-input-serveAddress">
-            <span>Ray GCS Address</span>
+            <span>Ray Serve Address (default is port 8000)</span>
         </label>
         <input type="text" id="node-config-input-serveAddress" placeholder="http://localhost:8000" />
     </div>
@@ -47,6 +47,7 @@
 <script type="text/javascript">
 
     const extractServeDeployments = (code) => {
+        code = code.replace(/^\s+#.*/g, '');
         const regex = /@serve\.deployment(\([^)]*\))?\s*(?:\s*[#@].*\n)*\s*class\s+(\w+):/g;
         return [...code.matchAll(regex)].map(([, deploymentArgs, name]) => {
             return { name, ...parseDeploymentArgs(deploymentArgs) };
@@ -56,11 +57,18 @@
     const parseDeploymentArgs = (deploymentArgs) => {
         // Remove parentheses and split by commas
         // Convert key-value pairs into an object
-        return deploymentArgs && deploymentArgs.slice(1, -1).split(/\s*,\s*/).reduce((acc, arg) => {
-            const [key, value] = arg.split('=');
-            acc[key.trim()] = JSON.parse(value.trim());
+        return deploymentArgs ? deploymentArgs.slice(1, -1).split(/\s*,\s*/).reduce((acc, arg) => {
+            let [key, value] = arg.split('=');
+            key = key.match(/\w+\s*$/)?.[0] || key;
+            if (key && value) {
+                try {
+                    acc[key.trim()] = JSON.parse(value.trim());
+                } catch (e) {
+                    console.error(`Failed to parse deployment argument: ${key}=${value}`);
+                }
+            }
             return acc;
-        }, {});
+        }, {}) : {};
     }
 
 //     const code = `
@@ -115,7 +123,8 @@ app = HelloWorld.bind()`
             dependencies: { value: [] },
             env_vars: { value: [] },
             code: { value: code.trim() },
-            deployments: { value: extractServeDeployments(code) },
+            deployments: { value: extractServeDeployments(code).map(({name}) => ({name})) },
+            deploymentArgs: { value: {} },
             // Add default values for other fields as needed
         },
         label: function () {
@@ -125,6 +134,7 @@ app = HelloWorld.bind()`
             return 'node_label_italic';
         },
         oneditprepare: function() {
+            let node = this;
             $("#ray-dashboard-link").on('click', function() {
                 let name = $('#node-input-name').val();
                 window.open(`http://localhost:8265/#/serve/applications/${name}`, '_blank').focus();
@@ -138,14 +148,10 @@ app = HelloWorld.bind()`
                 focus: true,
                 // extraLibs: extraLibs
             });
-            this.editor.onDidChangeModelContent((event) => {
-                render();
-            });
 
             const moduleExamples = ['numpy', 'torch>=2.0.0', 'pandas[postgresql]', 'requests', 'scipy', 'transformers', 'librosa']
             this.pipList = $("#node-input-dependencies-x").editableList({
                 addItem: function(row, index, data) {
-                    console.log(index, data)
                     let example = moduleExamples[index % moduleExamples.length];
                     let pkg = $(`<input type="text" class="node-input-item-name" placeholder="e.g. ${example}" />`).attr('value', data.name);
                     $(row).append(pkg);
@@ -158,10 +164,10 @@ app = HelloWorld.bind()`
 
             this.envList = $("#node-input-env_vars-x").editableList({
                 addItem: function(row, index, data) {
-                    $(`<input class='node-input-key' type="text" />`).appendTo(row).attr('value', data.key)
-                    $(`<input class='node-input-value' />`).appendTo(row).attr('value', data.value).typedInput({
+                    $(`<input class='node-input-key' type="text" placeholder="VAR_NAME" />`).appendTo(row).attr('value', data.key)
+                    $(`<input class='node-input-value' placeholder="value" />`).appendTo(row).attr('value', data.value).typedInput({
                         defaultType: data.type || 'str',
-                        types: ['flow','global','str','num','jsonata','env'],
+                        types: ['str','num','jsonata','env'], // ,'flow','global'
                     });
                 },
                 removable: true,
@@ -171,21 +177,42 @@ app = HelloWorld.bind()`
             }
 
             this.deploymentList = $("#node-input-deployments-x").editableList({
-                addItem: function(row, index, data) {
-                    $(`<input class='node-input-key' type="text" />`).appendTo(row).attr('value', JSON.stringify(data)).typedInput({
+                addItem: function(row, index, { name, ...value }) {
+                    let val = JSON.stringify(value, null, 2);
+                    $(`<input class='node-input-name' type="text" placeholder="Deployment Name" />`).appendTo(row).attr('value', name)
+                    $(`<input class='node-input-value' placeholder="value" />`).appendTo(row).attr('value', val).typedInput({
                         type:"json",
-                        types:["json"]
-                    })
-                    // $(`<input class='node-input-value' />`).appendTo(row).attr('value', data.value).typedInput({
-                    //     defaultType: data.type || 'str',
-                    //     types: ['flow','global','str','num','jsonata','env'],
-                    // });
+                        types: ['json'],
+                    });
                 },
                 removable: true,
             });
             for(let data of this.deployments) {
                 this.deploymentList.editableList('addItem', data)
             }
+
+            const renderDeployments = () => {
+                let code = this.editor.getValue();
+                let deployments = extractServeDeployments(code);
+                let oldDeployments = this.deploymentList.editableList('items').toArray().reduce((acc, item) => {
+                    let name = $(item).find('.node-input-name').val();
+                    let value = $(item).find('.node-input-value').typedInput('value');
+                    acc[name] = JSON.parse(value || '{}');
+                    return acc;
+                }, {});
+                
+                this.deploymentList.editableList('empty');
+                for(let {name, ...data} of deployments) {
+                    this.deploymentList.editableList('addItem', {name, ...oldDeployments?.[name], DETECTED_FROM_PYTHON: data});
+                }
+                node.deploymentArgs = {...node.deploymentArgs, ...oldDeployments};
+            }
+            renderDeployments();
+            this.editor.onDidChangeModelContent((event) => {
+                clearTimeout(this.debounceTimer);
+                this.debounceTimer = setTimeout(renderDeployments, 500);
+            });
+
 
             // Tabs
 
@@ -229,14 +256,16 @@ app = HelloWorld.bind()`
                 let value = $(this).find(".node-input-value").typedInput('value');
                 key && node.env_vars.push({ key, type, value });
             })
-            // node.deployments = [];
-            // $("#node-input-deployments-x").editableList('items').each(function(i) {
-            //     let key = $(this).find(".node-input-value").attr('value');
-            //     let type = $(this).find(".node-input-value").typedInput('type');
-            //     let value = $(this).find(".node-input-value").typedInput('value');
-            //     key && node.deployments.push({ key, type, value });
-            // })
-            node.deployments = extractServeDeployments(node.code);
+            node.deployments = [];
+            $("#node-input-deployments-x").editableList('items').each(function(i) {
+                let name = $(this).find(".node-input-name").val();
+                let value = $(this).find(".node-input-value").typedInput('value');
+                value = value.replace(/^\s+\/\/.*/g, '');
+                let data = JSON.parse(value || '{}');
+                name && node.deployments.push({ name, ...data });
+            })
+
+            // node.deployments = extractServeDeployments(node.code);
             delete this.pipList;
             delete this.envList;
             delete this.deploymentList;
@@ -293,6 +322,12 @@ app = HelloWorld.bind()`
         #ray-tabs-content .red-ui-editableList-container input {
             width: auto;
         }
+
+        #ray-tabs-content .red-ui-editableList-container input.node-input-name {
+            flex-basis: 100px;
+            flex-grow: 0;
+            width: 70%;
+        }
         
         /* #node-input-libs-container-row .red-ui-editableList-header {
             display: flex;
@@ -341,7 +376,7 @@ app = HelloWorld.bind()`
         } */
 
     </style>
-    <button id="ray-dashboard-link">Dashboard</button>
+    
     <div class="form-row ray-tabs-row">
         <ul style="min-width: 600px; margin-bottom: 20px;" id="ray-tabs"></ul>
     </div>
@@ -355,7 +390,8 @@ app = HelloWorld.bind()`
             </div>
             <div class="form-row">
                 <label for="node-input-name">
-                    <span>Server</span>
+                    <!-- <span>Server</span> -->
+                    <button id="ray-dashboard-link">Server</button>
                 </label>
                 <input type="text" id="node-input-server" />
             </div>
@@ -371,14 +407,17 @@ app = HelloWorld.bind()`
                 </div>
             </div>
             <div class="form-row">
-                <label for="node-input-variable_name">
-                    <span>App Variable</span>
-                </label>
-                <input type="text" id="node-input-variable_name" />
+                <p>What is the variable name of your Deployment?</p>
+                <code>serve.run(<input type="text" id="node-input-variable_name" />)</code>
             </div>
             <div class="form-row node-input-list-row">
+                <p>
+                    The list of deployments detected in your Python code. You can modify the deployment configuration here.
+                </p>
                 <label for="node-input-deployments-x">
-                    <span>Deployments</span>
+                    <span>
+                        Deployments [ <a target="_blank" href="https://docs.ray.io/en/latest/serve/api/index.html#get-api-serve-applications">docs</a> ]
+                    </span>
                 </label>
                 <ol id="node-input-deployments-x"></ol>
             </div>
@@ -393,6 +432,13 @@ app = HelloWorld.bind()`
                 <input type="text" id="node-input-container" />
             </div> -->
             <div class="form-row">
+                <p>
+                    Your Ray application might depend on Python packages (for example, pendulum or requests) via import statements.
+
+                    You can specify these dependencies here. Ray will install them in the environment where your application runs.
+                </p>
+            </div>
+            <div class="form-row">
                 <label for="node-input-package_manager">
                     <span>Package Manager</span>
                 </label>
@@ -403,8 +449,8 @@ app = HelloWorld.bind()`
             </div>
             <div class="form-row node-input-list-row">
                 <label for="node-input-dependencies-x">
-                    <span>Dependencies</span>
-                    <small>[<a href="https://docs.ray.io/en/latest/ray-core/handling-dependencies.html#using-conda-or-pip-packages">docs</a>]</small>
+                    <span>Python Dependencies</span>
+                    <small>[<a target="_blank" href="https://docs.ray.io/en/latest/ray-core/handling-dependencies.html#using-conda-or-pip-packages">docs</a>]</small>
                 </label>
                 <ol id="node-input-dependencies-x"></ol>
             </div>
@@ -412,6 +458,9 @@ app = HelloWorld.bind()`
                 <label for="node-input-env_vars-x">
                     <span>Environment Variables</span>
                 </label>
+                <p>
+                    You can specify environment variables that will be available to your application at runtime. 
+                </p>
                 <ol id="node-input-env_vars-x"></ol>
             </div>
         </div>
