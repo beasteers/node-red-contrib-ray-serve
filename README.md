@@ -32,6 +32,7 @@ Can potentially access the dashboard (by proxying) but I can't get it to require
 
 TODO:
  - ray dashboard permissions
+ - check for name and route collisions
  - fault tolerance:
     - add checks to see that Ray is running before deploying the application
     - node status should check the actual application status, not just that it was successfully uploaded

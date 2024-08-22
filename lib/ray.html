@@ -9,7 +9,7 @@
             serveAddressType: { value: 'str' },
         },
         label: function () {
-            return 'Ray Server';
+            return this.serveAddress || 'Ray Server';
         },
         labelStyle: function () {
             return 'node_label_italic';
@@ -71,6 +71,18 @@
         }, {}) : {};
     }
 
+
+    const sampleList = (list) => list[Math.floor(Math.random() * list.length)];
+    const randomEndpoint = () => {
+        const adjectives = [
+            'swift', 'bright', 'cosmic', 'dynamic', 'elastic', 'fluent', 'global', 'hyper', 'infinite', 'joyful', 
+            'kinetic', 'lunar', 'mighty', 'nebula', 'orbital', 'plasma', 'quantum', 'radiant', 'solar', 'turbo'];
+        const nouns = [
+            'api', 'node', 'service', 'endpoint', 'route', 'gateway', 'portal', 'hub', 'nexus', 'core', 
+            'engine', 'matrix', 'sphere', 'vertex', 'circuit', 'pulse', 'stream', 'grid', 'net', 'link'];
+        return `${sampleList(adjectives)}-${sampleList(nouns)}`;
+    }
+
 //     const code = `
 // from starlette.requests import Request
 // from ray import serve
@@ -114,8 +126,8 @@ app = HelloWorld.bind()`
 				type: 'rayConfig',
 				required: true,
 			},
-            name: { value: 'serve-app', required: true },
-            route_prefix: { value: '/' },
+            name: { value: '' },
+            route_prefix: { value: '', required: true },
             variable_name: { value: 'app' },
             // runtime_env: { value: {} },
             // container: { value: '' },
@@ -128,7 +140,7 @@ app = HelloWorld.bind()`
             // Add default values for other fields as needed
         },
         label: function () {
-            return this.name;
+            return this.name || this.route_prefix || 'Ray Serve';
         },
         labelStyle: function () {
             return 'node_label_italic';
@@ -139,11 +151,34 @@ app = HelloWorld.bind()`
                 let name = $('#node-input-name').val();
                 window.open(`http://localhost:8265/#/serve/applications/${name}`, '_blank').focus();
             });
+
+            node.otherEndpoints = {};
+            RED.nodes.eachNode(n => {
+                if(n.type !== "ray serve" || !n.server || n.id === node.id) return;
+                node.otherEndpoints[n.server] = node.otherEndpoints[n.server] || {};
+                node.otherEndpoints[n.server][n.route_prefix] = n.id;
+            })
+            console.log(node.otherEndpoints);
+
+            $('#node-input-route_prefix').val(this.route_prefix || `/${randomEndpoint()}`);
+            $('#node-input-route_prefix').on('keyup', function() {
+                let route = $(this).val();
+                let server = $('#node-input-server').val();
+                // console.log(route, server, node.otherEndpoints[server]?.[route]);
+                if(node.otherEndpoints[server]?.[route] && node.otherEndpoints[server]?.[route] !== node.id) {
+                    $(this).addClass("input-error");
+                    $(this).next('.route-prefix-error').text('Endpoint must be unique.');
+                } else {
+                    $(this).removeClass("input-error");
+                    $(this).next('.route-prefix-error').text('');
+                }
+            });
             
             this.editor = RED.editor.createEditor({
                 id: 'node-input-ray-serve-editor',
                 mode: 'ace/mode/python',
                 value: this.code || "",
+                height: '700px',
                 // stateId: stateId,
                 focus: true,
                 // extraLibs: extraLibs
@@ -292,13 +327,13 @@ app = HelloWorld.bind()`
         }
 
         #ray-tabs-content .node-input-list-row > label {
-            width: 100%;
+            /* width: 100%; */
             font-size: 1em;
             font-weight: 700;
             margin: 0 0 0 4px;
         }
         #ray-tabs-content .node-input-list-row .red-ui-editableList-container input {
-            width: auto;
+            /* width: auto; */
             border-radius: 0;
         }
         #ray-tabs-content .red-ui-editableList-container .red-ui-editableList-list li:not(:first-child) input {
@@ -319,62 +354,30 @@ app = HelloWorld.bind()`
         #node-input-env_vars-x .red-ui-typedInput-container {
             border-radius: 0;
         }
-        #ray-tabs-content .red-ui-editableList-container input {
+        /* #ray-tabs-content .red-ui-editableList-container input {
             width: auto;
-        }
+        } */
 
         #ray-tabs-content .red-ui-editableList-container input.node-input-name {
             flex-basis: 100px;
             flex-grow: 0;
-            width: 70%;
+            /* width: 70%; */
         }
-        
-        /* #node-input-libs-container-row .red-ui-editableList-header {
-            display: flex;
-            background: var(--red-ui-tertiary-background);
-            padding-right: 75px;
-            border-top-left-radius: 3px;
-            border-top-right-radius: 3px;
-        }
-        #node-input-libs-container-row .red-ui-editableList-header > div {
-            flex-grow: 1;
-        } */
-
-        /* .node-libs-entry {
-            display: flex;
+        #node-input-env_vars-x input.node-input-key {
+            width: auto;
         }
 
-        .node-libs-entry .red-ui-typedInput-container {
-            border-radius: 0;
-            border: none;
-        }
-        .node-libs-entry .red-ui-typedInput-type-select {
-            border-radius: 0 !important;
-            height: 34px;
-        }
-        .node-libs-entry > span > input[type=text] {
-            border-radius: 0;
-            border-top-color: var(--red-ui-form-background);
-            border-bottom-color: var(--red-ui-form-background);
-            border-right-color: var(--red-ui-form-background);
-        }
-        .node-libs-entry > span > input[type=text].input-error {
-        }
-        .node-libs-entry > span {
-            flex-grow: 1;
-            width: 50%;
-            position: relative;
-        }
-        .node-libs-entry span .node-input-libs-var, .node-libs-entry span .red-ui-typedInput-container {
+        #node-input-route_prefix {
+            font-family: monospace;
+            font-weight: 900;
+            font-size: 1.2em;
             width: 100%;
         }
-        .node-libs-entry > span > span > i {
-            display: none;
+        .route-prefix-error {
+            font-weight: 900;
+            color: red;
+            display: block;
         }
-        .node-libs-entry > span > span.input-error > i {
-            display: inline;
-        } */
-
     </style>
     
     <div class="form-row ray-tabs-row">
@@ -384,22 +387,25 @@ app = HelloWorld.bind()`
         <div id="ray-tab-app" style="display:none">
             <div class="form-row">
                 <label for="node-input-name">
-                    <span>Application Name</span>
-                </label>
-                <input type="text" id="node-input-name" />
-            </div>
-            <div class="form-row">
-                <label for="node-input-name">
                     <!-- <span>Server</span> -->
                     <button id="ray-dashboard-link">Server</button>
                 </label>
                 <input type="text" id="node-input-server" />
             </div>
             <div class="form-row">
-                <label for="node-input-route_prefix">
-                    <span>Route Prefix</span>
+                <label for="node-input-name">
+                    <span>Name</span>
                 </label>
-                <input type="text" id="node-input-route_prefix" />
+                <input type="text" id="node-input-name" />
+            </div>
+            <div class="form-row">
+                <label for="node-input-route_prefix">
+                    <span>URL</span>
+                </label>
+                <div>
+                    <input type="text" id="node-input-route_prefix" placeholder="What should the URL endpoint be?" />
+                    <small class="route-prefix-error"></small>
+                </div>
             </div>
             <div id="func-tab-body">
                 <div class="form-row node-text-editor-row" style="position:relative">

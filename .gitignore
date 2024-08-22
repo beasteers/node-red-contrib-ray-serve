@@ -13,6 +13,7 @@ lerna-debug.log*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 data
+/data*
 !/data/flows.json
 
 # Runtime data

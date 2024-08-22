@@ -13,6 +13,7 @@ services:
       RAY_GCS_ADDRESS: ray:6739
     volumes:
       - ./data:/data
+      # - ./config/flows.json:/data/flows.json   # Error saving flows: EBUSY: resource busy or locked
       - ./config/settings.js:/data/settings.js
       - .:/usr/src/node-red/node-red-contrib-ray-jobs
 
@@ -20,8 +21,8 @@ services:
     image: rayproject/ray:nightly-cpu-aarch64 #-ml
     container_name: nr-ray-cluster
     ports:
-      - 10001:10001  # client
-      - 6379:6379  # gcs
+      # - 10001:10001  # client
+      # - 6379:6379  # gcs
       - 8265:8265  # dashboard
       - 8000:8000  # serve
     privileged: true
