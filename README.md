@@ -1,7 +1,5 @@
 # Deploy Ray Serve Applications with NodeRed.
 
-> IMPORTANT: This will overwrite existing apps deployed to Ray Serve
-
 ## Demo
 
 ```
@@ -30,8 +28,15 @@ Can potentially access the dashboard (by proxying) but I can't get it to require
 
 ![alt text](ray-dash.png)
 
+> NOTE: This will overwrite existing apps deployed to Ray Serve. Could be fixed with [#42974](https://github.com/ray-project/ray/issues/42974)
+
+You can query available routes:
+```bash
+http://ray:8000//-/routes
+```
+
 TODO:
- - ray dashboard permissions
+ - restrict permissions for ray dashboard
  - check for name and route collisions
  - fault tolerance:
     - add checks to see that Ray is running before deploying the application
@@ -39,16 +44,10 @@ TODO:
     - redeploy after failure
  - better way of showing logs?
  - Why do you have to use a double slash with ray? `http://ray:8000//hello-world`
-
-You can query available routes:
-```bash
-http://ray:8000//-/routes
-```
+ - Preserve non-nodered deployed Ray Serve apps
 
 ## Examples
-> From experience (without a GPU), looking at backlog size:
-> 
-> replicas >> batching > vanilla
+> Speed of running ML model on CPU: replicas >> batching > vanilla
 
 Vanilla english-to-french translator
 ```python
