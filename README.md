@@ -10,23 +10,23 @@ You can access the Node-Red dashboard [here](http://localhost:1881). The Ray das
 
 Deploy python functions to Ray Serve directly from NodeRed.
 
-![alt text](flow.png)
+![alt text](public/flow.png)
 
 Configure your python functions
 
-![alt text](app-config.png)
+![alt text](public/app-config.png)
 
 Add python dependencies and environment variables
 
-![alt text](env-config.png)
+![alt text](public/env-config.png)
 
 Manage Ray servers
 
-![alt text](ray-config.png)
+![alt text](public/ray-config.png)
 
 Can potentially access the dashboard (by proxying) but I can't get it to require permissions so it's currently disabled.
 
-![alt text](ray-dash.png)
+![alt text](public/ray-dash.png)
 
 > NOTE: This will overwrite existing apps deployed to Ray Serve. Could be fixed with [#42974](https://github.com/ray-project/ray/issues/42974)
 
