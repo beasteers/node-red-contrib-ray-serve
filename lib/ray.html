@@ -1,3 +1,12 @@
+<style>
+    .node_label_monospace {
+        font-family: monospace;
+        font-size: 0.82em;
+        font-weight: 900;
+    }
+</style>
+
+
 <script type="text/javascript">
     RED.nodes.registerType('rayConfig', {
         category: 'config',
@@ -11,9 +20,9 @@
         label: function () {
             return this.serveAddress || 'Ray Server';
         },
-        labelStyle: function () {
-            return 'node_label_italic';
-        },
+        // labelStyle: function () {
+        //     return 'node_label_monospace';
+        // },
         oneditprepare: function () {
             $('#node-config-input-rayAddress').typedInput({
 				default: this.rayAddressType,
@@ -117,9 +126,11 @@ app = HelloWorld.bind()`
 
     RED.nodes.registerType('ray serve', {
         category: 'function',
-        color: '#3c8ae9',
+        color: '#65a9fc',
         inputs: 1,
         outputs: 1,
+        // outputs: 2,
+        // outputLabels: ['response', 'unprocessable'],
         icon: "ray-logo.svg",
         defaults: {
             server: {
@@ -142,9 +153,9 @@ app = HelloWorld.bind()`
         label: function () {
             return this.name || this.route_prefix || 'Ray Serve';
         },
-        labelStyle: function () {
-            return 'node_label_italic';
-        },
+        // labelStyle: function () {
+        //     return 'node_label_monospace';
+        // },
         oneditprepare: function() {
             let node = this;
             $("#ray-dashboard-link").on('click', function() {

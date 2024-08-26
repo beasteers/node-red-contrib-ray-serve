@@ -35,3 +35,27 @@ services:
     #     limits:
     #       cpus: '1'
     #       memory: '2g'
+
+  # --------------------------------- Testing -------------------------------- #
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nr-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data-grafana:/var/lib/grafana
+
+  postgres:
+    image: timescale/timescaledb-ha:pg16
+    container_name: postgres
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - ./test/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data-postgres:/home/postgres/pgdata
+    ports:
+      - "5432:5432"

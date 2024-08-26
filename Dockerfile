@@ -10,5 +10,5 @@ RUN npm install node-red-contrib-postgresql
 RUN mkdir node-red-contrib-ray-jobs
 COPY package*.json node-red-contrib-ray-jobs/
 RUN npm install ./node-red-contrib-ray-jobs
-COPY . node-red-contrib-ray-jobs/
+COPY lib node-red-contrib-ray-jobs/lib
 COPY config/settings.js /data/settings.js

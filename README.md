@@ -1,10 +1,21 @@
 # Deploy Ray Serve Applications with NodeRed.
 
-## Demo
+> This is a prototype - I look forward to hearing feedback and ideas for improvements
+
+Ray is a powerful distributed computing framework for Python that allows you to easily scale your applications. By pairing Ray with Node-RED, you can take advantage of Ray's distributed capabilities to handle large workloads and parallelize tasks, while leaving Node-RED to do what it does best - IO and lightweight data plumbing.
+
+Docs:
+ * [Ray.io](https://www.ray.io/): Effortless distributed computing with Python
+ * [Ray Serve Docs](https://docs.ray.io/en/latest/serve/index.html): Run Ray with HTTP endpoints
+ * [Ray Serve Examples](https://docs.ray.io/en/latest/serve/examples.html): Examples of deploying ML Inference to Ray Serve
+
+## Install
 
 ```
 docker-compose up -d --build
 ```
+
+## Screenshots
 
 You can access the Node-Red dashboard [here](http://localhost:1881). The Ray dashboard can be found [here](http://localhost:8265).
 
@@ -34,17 +45,6 @@ You can query available routes:
 ```bash
 http://ray:8000//-/routes
 ```
-
-TODO:
- - restrict permissions for ray dashboard
- - check for name and route collisions
- - fault tolerance:
-    - add checks to see that Ray is running before deploying the application
-    - node status should check the actual application status, not just that it was successfully uploaded
-    - redeploy after failure
- - better way of showing logs?
- - Why do you have to use a double slash with ray? `http://ray:8000//hello-world`
- - Preserve non-nodered deployed Ray Serve apps
 
 ## Examples
 > Speed of running ML model on CPU: replicas >> batching > vanilla
@@ -110,6 +110,43 @@ class Translator:
          
 app = Translator.bind()
 ```
+
+
+## How it Works
+
+This module offers two nodes:
+
+ * Ray Serve node - a node to store a Ray Serve Application
+    * Ray Config node (which is basically just a wrapper to store the Ray Dashboard URL and Ray Serve URLs)
+
+When the flow is deployed, this module will gather all of the Ray Serve applications and for each Server, it will
+ * Create zip files of the code for each application and upload them to Ray's GCS storage
+    * Repeat uploads will be skipped based on a hash of its content
+ * create a Serve [application payload](https://docs.ray.io/en/latest/serve/api/index.html#serve-rest-api)
+ * Deploy the applications by doing `PUT /api/serve/applications`
+    * > **Serve Docs**: The endpoint declaratively deploys a list of Serve applications. If Serve is already running on the Ray cluster, removes all applications not listed in the new config. If Serve is not running on the Ray cluster, starts Serve. See [multi-app config schema](https://docs.ray.io/en/latest/serve/api/index.html#serve-rest-api-config-schema) for the request’s JSON schema.
+
+When messages come in, they are sent to the deployed Ray Serve HTTP endpoint. 
+
+The nice thing about this is you can keep the Ray Serve endpoints private to your cluster and Node-RED can access them
+from the private network. 
+
+
+## TODO:
+ - restrict permissions for ray dashboard
+ - check for name and route collisions
+ - fault tolerance:
+    - add checks to see that Ray is running before deploying the application
+    - node status should check the actual application status, not just that it was successfully uploaded
+    - redeploy after failure
+    - retry loop for requests
+ - preserve message ordering?
+ - better way of showing logs?
+ - Why do you have to use a double slash with ray? `http://ray:8000//hello-world`
+ - Preserve non-nodered deployed Ray Serve apps
+
+For testing message rates during redeploys, you should use "Deploy: Modified nodes" mode so that your interval nodes will continue publishing at a different rate. Otherwise any variations that you see could be attributed to interval resets.
+![alt text](public/deploy_mode.png)
 
 ## Example flow
 ```json
