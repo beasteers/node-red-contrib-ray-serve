@@ -11,6 +11,12 @@ Docs:
 
 ## Install
 
+```bash
+npm i node-red-contrib-ray-serve
+```
+
+For full end-to-end testing (including a local ray cluster and grafana), you can use:
+
 ```
 docker-compose up -d --build
 ```
