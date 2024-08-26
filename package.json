@@ -1,7 +1,7 @@
 {
-  "name": "@bea.steers/node-red-contrib-ray-jobs",
+  "name": "node-red-contrib-ray-serve",
   "version": "0.0.1",
-  "description": "Submit ray jobs from Node-RED",
+  "description": "Deploy Ray Serve applications from Node-RED",
   "main": "lib/ray.js",
   "scripts": {},
   "node-red": {
@@ -11,20 +11,41 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/beasteers/node-red-contrib-ray-jobs.git"
+    "url": "git+https://github.com/beasteers/node-red-contrib-ray-serve.git"
   },
   "keywords": [
     "node-red",
     "ray",
+    "serve",
+    "kuberay",
+    "python",
+    "actor",
+    "deployment",
+    "remote",
+    "job",
+    "horizontal",
+    "scalable",
+    "replicas",
+    "machine-learning",
+    "ml",
+    "ai",
+    "model",
+    "http",
+    "request",
+    "application",
+    "gpu",
+    "cpu",
+    "multicore",
     "cluster"
   ],
   "author": "beasteers",
   "license": "MIT",
-  "homepage": "https://github.com/beasteers/node-red-contrib-ray-jobs",
+  "homepage": "https://github.com/beasteers/node-red-contrib-ray-serve",
   "devDependencies": {
     "node-red": "^3.1.3"
   },
   "dependencies": {
+    "axios": "^1.6.1",
     "jszip": "^3.10.1"
   }
 }

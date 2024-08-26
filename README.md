@@ -1,6 +1,6 @@
 # Deploy Ray Serve Applications with NodeRed.
 
-> This is a prototype - I look forward to hearing feedback and ideas for improvements
+> This is a prototype - I look forward to hearing your experience, feedback, and ideas for improvements.
 
 Ray is a powerful distributed computing framework for Python that allows you to easily scale your applications. By pairing Ray with Node-RED, you can take advantage of Ray's distributed capabilities to handle large workloads and parallelize tasks, while leaving Node-RED to do what it does best - IO and lightweight data plumbing.
 
@@ -111,7 +111,6 @@ class Translator:
 app = Translator.bind()
 ```
 
-
 ## How it Works
 
 This module offers two nodes:
@@ -130,23 +129,6 @@ When messages come in, they are sent to the deployed Ray Serve HTTP endpoint.
 
 The nice thing about this is you can keep the Ray Serve endpoints private to your cluster and Node-RED can access them
 from the private network. 
-
-
-## TODO:
- - restrict permissions for ray dashboard
- - check for name and route collisions
- - fault tolerance:
-    - add checks to see that Ray is running before deploying the application
-    - node status should check the actual application status, not just that it was successfully uploaded
-    - redeploy after failure
-    - retry loop for requests
- - preserve message ordering?
- - better way of showing logs?
- - Why do you have to use a double slash with ray? `http://ray:8000//hello-world`
- - Preserve non-nodered deployed Ray Serve apps
-
-For testing message rates during redeploys, you should use "Deploy: Modified nodes" mode so that your interval nodes will continue publishing at a different rate. Otherwise any variations that you see could be attributed to interval resets.
-![alt text](public/deploy_mode.png)
 
 ## Example flow
 ```json

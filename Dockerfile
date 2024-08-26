@@ -6,9 +6,15 @@ FROM nodered/node-red:latest-18
 # RUN python3 -m pip install -U "ray[default,serve]"
 # USER node-red
 
+# FOR TESTING
 RUN npm install node-red-contrib-postgresql
-RUN mkdir node-red-contrib-ray-jobs
-COPY package*.json node-red-contrib-ray-jobs/
-RUN npm install ./node-red-contrib-ray-jobs
-COPY lib node-red-contrib-ray-jobs/lib
+# 
+
+# Install
+RUN mkdir rayserve
+COPY package*.json rayserve/
+RUN npm install ./rayserve
+COPY lib rayserve/lib
+
+# Settings
 COPY config/settings.js /data/settings.js
