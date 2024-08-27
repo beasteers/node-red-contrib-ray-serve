@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: 'disk'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      # <string, required> path to dashboard files on disk. Required when using the 'file' type
+      path: /etc/grafana/provisioning/dashboards/dashboards
+      # <bool> use folder names from filesystem to create folders in Grafana
+      foldersFromFilesStructure: true

@@ -15,15 +15,19 @@ Docs:
 npm i node-red-contrib-ray-serve
 ```
 
+## Test Install
 For full end-to-end testing (including a local ray cluster and grafana), you can use:
 
 ```
 docker-compose up -d --build
 ```
+You can access: 
+ * Node-Red dashboard [here](http://localhost:1881). 
+ * The Ray dashboard can be found [here](http://localhost:8265).
+ * Access Grafana [here](http://localhost:3000/d/d57785c9-be19-4f1c-8870-ccaf1f5a9f98/data-rates?orgId=1&refresh=5s)
 
 ## Screenshots
 
-You can access the Node-Red dashboard [here](http://localhost:1881). The Ray dashboard can be found [here](http://localhost:8265).
 
 Deploy python functions to Ray Serve directly from NodeRed.
 
