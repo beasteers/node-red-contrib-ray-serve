@@ -121,6 +121,34 @@ class Translator:
 app = Translator.bind()
 ```
 
+Using replica autoscaling
+```python
+import time
+from ray import serve
+from transformers import pipeline
+
+@serve.deployment(
+     autoscaling_config=dict(
+        min_replicas=1, 
+        initial_replicas=2,
+        max_replicas=4,
+        upscaling_factor=0.5,
+    )
+)
+class Translator:
+    def __init__(self):
+        self.model = pipeline("translation_en_to_fr", model="t5-small")
+
+    def translate(self, text: str) -> str:
+        return self.model(text)[0]["translation_text"]
+
+    async def __call__(self, http_request) -> str:
+        english_text: str = await http_request.json()
+        return self.translate(english_text)
+
+app = Translator.bind()
+```
+
 ## How it Works
 
 This module offers two nodes:
