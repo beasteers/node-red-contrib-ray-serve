@@ -16,9 +16,11 @@
             rayAddressType: { value: 'str' },
             serveAddress: { value: 'http://ray:8000', required: true },
             serveAddressType: { value: 'str' },
+            publicRayAddress: { value: '', required: false },
+            publicRayAddressType: { value: 'str' },
         },
         label: function () {
-            return this.serveAddress || 'Ray Server';
+            return this.publicRayAddress || this.rayAddress || this.serveAddress || 'Ray Server';
         },
         // labelStyle: function () {
         //     return 'node_label_monospace';
@@ -30,6 +32,10 @@
 			});
             $('#node-config-input-serveAddress').typedInput({
 				default: this.serveAddressType,
+				types: ['str', 'global', 'env'],
+			});
+            $('#node-config-input-publicRayAddress').typedInput({
+				default: this.publicRayAddressType,
 				types: ['str', 'global', 'env'],
 			});
         },
@@ -55,30 +61,30 @@
 
 <script type="text/javascript">
 
-    const extractServeDeployments = (code) => {
-        code = code.replace(/^\s+#.*/g, '');
-        const regex = /@serve\.deployment(\([^)]*\))?\s*(?:\s*[#@].*\n)*\s*class\s+(\w+):/g;
-        return [...code.matchAll(regex)].map(([, deploymentArgs, name]) => {
-            return { name, ...parseDeploymentArgs(deploymentArgs) };
-        });
-    }
+    // const extractServeDeployments = (code) => {
+    //     code = code.replace(/^\s+#.*/g, '');
+    //     const regex = /@serve\.deployment(\([^)]*\))?\s*(?:\s*[#@].*\n)*\s*class\s+(\w+):/g;
+    //     return [...code.matchAll(regex)].map(([, deploymentArgs, name]) => {
+    //         return { name, ...parseDeploymentArgs(deploymentArgs) };
+    //     });
+    // }
 
-    const parseDeploymentArgs = (deploymentArgs) => {
-        // Remove parentheses and split by commas
-        // Convert key-value pairs into an object
-        return deploymentArgs ? deploymentArgs.slice(1, -1).split(/\s*,\s*/).reduce((acc, arg) => {
-            let [key, value] = arg.split('=');
-            key = key.match(/\w+\s*$/)?.[0] || key;
-            if (key && value) {
-                try {
-                    acc[key.trim()] = JSON.parse(value.trim());
-                } catch (e) {
-                    console.error(`Failed to parse deployment argument: ${key}=${value}`);
-                }
-            }
-            return acc;
-        }, {}) : {};
-    }
+    // const parseDeploymentArgs = (deploymentArgs) => {
+    //     // Remove parentheses and split by commas
+    //     // Convert key-value pairs into an object
+    //     return deploymentArgs ? deploymentArgs.slice(1, -1).split(/\s*,\s*/).reduce((acc, arg) => {
+    //         let [key, value] = arg.split('=');
+    //         key = key.match(/\w+\s*$/)?.[0] || key;
+    //         if (key && value) {
+    //             try {
+    //                 acc[key.trim()] = JSON.parse(value.trim());
+    //             } catch (e) {
+    //                 console.error(`Failed to parse deployment argument: ${key}=${value}`);
+    //             }
+    //         }
+    //         return acc;
+    //     }, {}) : {};
+    // }
 
 
     const sampleList = (list) => list[Math.floor(Math.random() * list.length)];
@@ -119,6 +125,7 @@ from ray import serve
 @serve.deployment
 class HelloWorld:
     async def __call__(self, http_request) -> str:
+        """This method will be called for each input payload."""
         msg: dict = await http_request.json()
         return {"payload": "Hello from ray!", "received": msg}
                 
@@ -128,9 +135,9 @@ app = HelloWorld.bind()`
         category: 'function',
         color: '#65a9fc',
         inputs: 1,
-        outputs: 1,
-        // outputs: 2,
-        // outputLabels: ['response', 'unprocessable'],
+        // outputs: 1,
+        outputs: 2,
+        outputLabels: ['result', 'overflow'],
         icon: "ray-logo.svg",
         defaults: {
             server: {
@@ -146,8 +153,10 @@ app = HelloWorld.bind()`
             dependencies: { value: [] },
             env_vars: { value: [] },
             code: { value: code.trim() },
-            deployments: { value: extractServeDeployments(code).map(({name}) => ({name})) },
-            deploymentArgs: { value: {} },
+            // deployments: { value: extractServeDeployments(code).map(({name}) => ({name})) },
+            // deploymentArgs: { value: {} },
+            maxConcurrent: { value: 20 },
+            maxBacklogOverflow: { value: 1000 },
             // Add default values for other fields as needed
         },
         label: function () {
@@ -160,7 +169,8 @@ app = HelloWorld.bind()`
             let node = this;
             $("#ray-dashboard-link").on('click', function() {
                 let name = $('#node-input-name').val();
-                window.open(`http://localhost:8265/#/serve/applications/${name}`, '_blank').focus();
+                let url = node.publicRayAddress || node.rayAddress || 'http://localhost:8265';
+                window.open(`${url}/#/serve/applications/${name}`, '_blank').focus();
             });
 
             node.otherEndpoints = {};
@@ -222,42 +232,42 @@ app = HelloWorld.bind()`
                 this.envList.editableList('addItem', data)
             }
 
-            this.deploymentList = $("#node-input-deployments-x").editableList({
-                addItem: function(row, index, { name, ...value }) {
-                    let val = JSON.stringify(value, null, 2);
-                    $(`<input class='node-input-name' type="text" placeholder="Deployment Name" />`).appendTo(row).attr('value', name)
-                    $(`<input class='node-input-value' placeholder="value" />`).appendTo(row).attr('value', val).typedInput({
-                        type:"json",
-                        types: ['json'],
-                    });
-                },
-                removable: true,
-            });
-            for(let data of this.deployments) {
-                this.deploymentList.editableList('addItem', data)
-            }
+            // this.deploymentList = $("#node-input-deployments-x").editableList({
+            //     addItem: function(row, index, { name, ...value }) {
+            //         let val = JSON.stringify(value, null, 2);
+            //         $(`<input class='node-input-name' type="text" placeholder="Deployment Name" />`).appendTo(row).attr('value', name)
+            //         $(`<input class='node-input-value' placeholder="value" />`).appendTo(row).attr('value', val).typedInput({
+            //             type:"json",
+            //             types: ['json'],
+            //         });
+            //     },
+            //     removable: true,
+            // });
+            // for(let data of this.deployments) {
+            //     this.deploymentList.editableList('addItem', data)
+            // }
 
-            const renderDeployments = () => {
-                let code = this.editor.getValue();
-                let deployments = extractServeDeployments(code);
-                let oldDeployments = this.deploymentList.editableList('items').toArray().reduce((acc, item) => {
-                    let name = $(item).find('.node-input-name').val();
-                    let value = $(item).find('.node-input-value').typedInput('value');
-                    acc[name] = JSON.parse(value || '{}');
-                    return acc;
-                }, {});
+            // const renderDeployments = () => {
+            //     let code = this.editor.getValue();
+            //     let deployments = extractServeDeployments(code);
+            //     let oldDeployments = this.deploymentList.editableList('items').toArray().reduce((acc, item) => {
+            //         let name = $(item).find('.node-input-name').val();
+            //         let value = $(item).find('.node-input-value').typedInput('value');
+            //         acc[name] = JSON.parse(value || '{}');
+            //         return acc;
+            //     }, {});
                 
-                this.deploymentList.editableList('empty');
-                for(let {name, ...data} of deployments) {
-                    this.deploymentList.editableList('addItem', {name, ...oldDeployments?.[name], DETECTED_FROM_PYTHON: data});
-                }
-                node.deploymentArgs = {...node.deploymentArgs, ...oldDeployments};
-            }
-            renderDeployments();
-            this.editor.onDidChangeModelContent((event) => {
-                clearTimeout(this.debounceTimer);
-                this.debounceTimer = setTimeout(renderDeployments, 500);
-            });
+            //     this.deploymentList.editableList('empty');
+            //     for(let {name, ...data} of deployments) {
+            //         this.deploymentList.editableList('addItem', {name, ...oldDeployments?.[name] });
+            //     }
+            //     node.deploymentArgs = {...node.deploymentArgs, ...oldDeployments};
+            // }
+            // renderDeployments();
+            // this.editor.onDidChangeModelContent((event) => {
+            //     clearTimeout(this.debounceTimer);
+            //     this.debounceTimer = setTimeout(renderDeployments, 500);
+            // });
 
 
             // Tabs
@@ -280,7 +290,7 @@ app = HelloWorld.bind()`
             });
             tabs.addTab({
                 id: "ray-tab-deps",
-                label: "Environment"
+                label: "Settings"
             });
 
             tabs.activateTab("ray-tab-app");
@@ -302,19 +312,19 @@ app = HelloWorld.bind()`
                 let value = $(this).find(".node-input-value").typedInput('value');
                 key && node.env_vars.push({ key, type, value });
             })
-            node.deployments = [];
-            $("#node-input-deployments-x").editableList('items').each(function(i) {
-                let name = $(this).find(".node-input-name").val();
-                let value = $(this).find(".node-input-value").typedInput('value');
-                value = value.replace(/^\s+\/\/.*/g, '');
-                let data = JSON.parse(value || '{}');
-                name && node.deployments.push({ name, ...data });
-            })
+            // node.deployments = [];
+            // $("#node-input-deployments-x").editableList('items').each(function(i) {
+            //     let name = $(this).find(".node-input-name").val();
+            //     let value = $(this).find(".node-input-value").typedInput('value');
+            //     value = value.replace(/^\s+\/\/.*/g, '');
+            //     let data = JSON.parse(value || '{}');
+            //     name && node.deployments.push({ name, ...data });
+            // })
 
             // node.deployments = extractServeDeployments(node.code);
             delete this.pipList;
             delete this.envList;
-            delete this.deploymentList;
+            // delete this.deploymentList;
 
         },
         oneditcancel: function() {
@@ -389,6 +399,10 @@ app = HelloWorld.bind()`
             color: red;
             display: block;
         }
+
+        #ray-tabs-content a {
+            color: #65a9fc;
+        }
     </style>
     
     <div class="form-row ray-tabs-row">
@@ -396,67 +410,86 @@ app = HelloWorld.bind()`
     </div>
     <div id="ray-tabs-content" style="min-height: calc(100% - 95px);">
         <div id="ray-tab-app" style="display:none">
+            
+
             <div class="form-row">
-                <label for="node-input-name">
-                    <!-- <span>Server</span> -->
-                    <button id="ray-dashboard-link">Server</button>
-                </label>
-                <input type="text" id="node-input-server" />
+                <h2>
+                    Learn how to use 
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/index.html">Ray Serve</a>
+                </h2>
+                <p>
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/getting_started.html">Get Started</a> &nbsp;&nbsp;
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/key-concepts.html">Concepts</a> &nbsp;&nbsp;
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/develop-and-deploy.html">Tutorial</a> &nbsp;&nbsp;
+                    
+                </p>
             </div>
-            <div class="form-row">
-                <label for="node-input-name">
-                    <span>Name</span>
-                </label>
-                <input type="text" id="node-input-name" />
-            </div>
-            <div class="form-row">
-                <label for="node-input-route_prefix">
-                    <span>URL</span>
-                </label>
-                <div>
-                    <input type="text" id="node-input-route_prefix" placeholder="What should the URL endpoint be?" />
-                    <small class="route-prefix-error"></small>
-                </div>
-            </div>
+
+
             <div id="func-tab-body">
                 <div class="form-row node-text-editor-row" style="position:relative">
-                    <div style="height: 400px; min-height:150px;" class="node-text-editor" id="node-input-ray-serve-editor" ></div>
+                    <div style="height: 900px; min-height:150px;" class="node-text-editor" id="node-input-ray-serve-editor" ></div>
                 </div>
             </div>
-            <div class="form-row">
-                <p>What is the variable name of your Deployment?</p>
-                <code>serve.run(<input type="text" id="node-input-variable_name" />)</code>
-            </div>
-            <div class="form-row node-input-list-row">
-                <p>
-                    The list of deployments detected in your Python code. You can modify the deployment configuration here.
-                </p>
-                <label for="node-input-deployments-x">
-                    <span>
-                        Deployments [ <a target="_blank" href="https://docs.ray.io/en/latest/serve/configure-serve-deployment.html">docs</a> ]
-                    </span>
-                </label>
-                <ol id="node-input-deployments-x"></ol>
-            </div>
-
-            <div>
-                <ul>
-                    <li><a href="https://docs.ray.io/en/latest/serve/advanced-guides/advanced-autoscaling.html#optional-define-how-the-system-reacts-to-changing-traffic" target="_blank">
-                        Autoscaling Docs (<code>autoscaling_config</code>)
-                    </a></li>
-                </ul>
-            </div>
-
         </div>
 
         <div id="ray-tab-deps" style="display:none">
+
+            <div class="form-row">
+                <h2>General:</h2>
+            </div>
+
+            <div class="form-row">
+                <label for="node-input-name">
+                    <!-- <span>Server</span> -->
+                    <button id="ray-dashboard-link">Ray Server</button>
+                </label>
+                <input type="text" id="node-input-server" />
+                <small>What Ray Server should this deploy to?</small>
+            </div>
+            <div class="form-row">
+                <label for="node-input-name">
+                    <b>App Name</b>
+                </label>
+                <input type="text" id="node-input-name" />
+                <small>Give your app a name.</small>
+            </div>
+            <div class="form-row">
+                <label for="node-input-route_prefix">
+                    <b>App URL</b>
+                </label>
+                <div>
+                    <input type="text" id="node-input-route_prefix" placeholder="What should the URL endpoint be?" />
+                    <small>This is the URL that nodered will call to run this function.</small>
+                    <small class="route-prefix-error"></small>
+                </div>
+            </div>
+            <div class="form-row">
+                <p>Deployment variable: (e.g. <code><b>app</b> = MyApp.bind()</code>)</p>
+                <code>serve.run(<input type="text" placeholder='e.g. app' id="node-input-variable_name" />)</code>
+                <small>So that Ray knows which object to call.</small>
+            </div>
+
             <!-- <div class="form-row">
                 <label for="node-input-name">
                     <span>Container Image</span>
                 </label>
                 <input type="text" id="node-input-container" />
             </div> -->
+            
+            <!-- <div class="form-row node-input-list-row">
+                <h3>
+                    Deployments [<a target="_blank" href="https://docs.ray.io/en/latest/serve/configure-serve-deployment.html">docs</a>]
+                </h3>
+                <p>
+                    The list of deployments detected in your Python code. You can modify the deployment configuration here. 
+                    Anything inside DETECTED_FROM_PYTHON is automatically detected from your Python code.
+                </p>
+                <ol id="node-input-deployments-x"></ol>
+            </div>
+            <hr /> -->
             <div class="form-row">
+                <h2>Requirements:</h2>
                 <p>
                     Your Ray application might depend on Python packages (for example, pendulum or requests) via import statements.
 
@@ -488,7 +521,150 @@ app = HelloWorld.bind()`
                 </p>
                 <ol id="node-input-env_vars-x"></ol>
             </div>
+
+            <h2>Settings:</h2>
+            <div class="form-row">
+                <label for="node-input-name">
+                    <span>Max Concurrent Requests</span>
+                </label>
+                <input type="text" id="node-input-maxConcurrent" placeholder="20" />
+            </div>
+            <div class="form-row">
+                <label for="node-input-name">
+                    <span>Max Backlog Length</span>
+                </label>
+                <input type="text" id="node-input-maxBacklogOverflow" placeholder="1000" />
+            </div>
+            <!-- <div class="form-row">
+                <label for="node-input-mimetype">
+                    <span>Request Mimetype</span>
+                </label>
+                <select id="node-input-mimetype">
+                    <option value="application/json">JSON</option>
+                    <option value="auto">auto</option>
+                    <option value="text/plain">plain</option>
+                    <option value="application/octet-stream">octet-stream</option>
+                </select>
+            </div> -->
+
+
         </div>
     </div>
     
+</script>
+
+
+<script type="text/html" data-help-name="ray serve">
+
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>payload
+            <span class="property-type">any</span>
+        </dt>
+        <dd> the input to your endpoint.</dd>
+        <!-- <dt class="optional">topic <span class="property-type">string</span></dt> -->
+        <!-- <dd> the MQTT topic to publish to.</dd> -->
+    </dl>
+
+    <h3>Outputs</h3>
+
+     <ol class="node-ports">
+         <li>Response
+            <dl class="message-properties">
+                <dt>payload <span class="property-type">any</span></dt>
+                <dd>the output of your function.</dd>
+                <dt>...COMMON</dt>
+            </dl>
+         </li>
+         <!-- <li>Overflow
+            <dl class="message-properties">
+                <dt>...COMMON</dt>
+            </dl>
+         </li> -->
+     </ol>
+
+     <h4>Errors:</h4>
+     <ol class="node-ports">
+        <dl class="message-properties">
+            <dt>error.response <span class="property-type">axios.Response</span></dt>
+            <dd>the axios error.</dd>
+            <dt>error.response.status <span class="property-type">integer</span></dt>
+            <dd>the error status code (e.g. 500).</dd>
+            <dt>...COMMON</dt>
+        </dl>
+    </ol>
+
+    <h4>COMMON:</h4>
+    <dl class="message-properties">
+       <dt>inputPayload <span class="property-type">any</span></dt>
+       <dd>the input that was provided to the function.</dd>
+       <dt>rayQueueCountCurrent <span class="property-type">integer</span></dt>
+       <dd>the number of queries submitted to the function.</dd>
+       <dt>rayQueueCountBacklog <span class="property-type">integer</span></dt>
+       <dd>the number of queries in the message backlog.</dd>
+       <dt>route <span class="property-type">string</span></dt>
+       <dd>the function's URL.</dd>
+       <dt>nReplicas <span class="property-type">integer</span></dt>
+       <dd>The total number of replicas across the entire application.</dd>
+       <dt>responseTime <span class="property-type">integer</span></dt>
+       <dd>The amount of time (in milliseconds) that the request took.</dd>
+   </dl>
+
+   <h3><code>ray.serve</code> code help</h3>
+
+
+    <h3>
+        <code><pre>@serve.deployment(   )</pre></code>
+    </h3>
+    <ul>
+        <li><code><b>name</b></code> – Name uniquely identifying this deployment within the application. If not provided, the name of the class or function is used.</li>
+        <li><code><b>num_replicas</b></code> – Number of replicas to run that handle requests to this deployment. Defaults to 1.</li>
+        <li><code><b>autoscaling_config</b></code> – Parameters to configure autoscaling behavior. If this is set, num_replicas cannot be set.</li>
+        <li><code><b>route_prefix</b></code> – <b>[DEPRECATED]</b> Route prefix should be set per-application through serve.run() or the config file.</li>
+        <li><code><b>ray_actor_options</b></code> – Options to pass to the Ray Actor decorator, such as resource requirements. Valid options are: accelerator_type, memory, num_cpus, num_gpus, resources, and runtime_env.</li>
+        <li><code><b>placement_group_bundles</b></code> – Defines a set of placement group bundles to be scheduled for each replica of this deployment. The replica actor will be scheduled in the first bundle provided, so the resources specified in ray_actor_options must be a subset of the first bundle’s resources. All actors and tasks created by the replica actor will be scheduled in the placement group by default (placement_group_capture_child_tasks is set to True). This cannot be set together with max_replicas_per_node.</li>
+        <li><code><b>placement_group_strategy</b></code> – Strategy to use for the replica placement group specified via placement_group_bundles. Defaults to PACK.</li>
+        <li><code><b>user_config</b></code> – Config to pass to the reconfigure method of the deployment. This can be updated dynamically without restarting the replicas of the deployment. The user_config must be fully JSON-serializable.</li>
+        <li><code><b>max_ongoing_requests</b></code> – Maximum number of requests that are sent to a replica of this deployment without receiving a response. Defaults to 5.</li>
+        <li><code><b>max_queued_requests</b></code> – <b>[EXPERIMENTAL]</b> Maximum number of requests to this deployment that will be queued at each caller (proxy or DeploymentHandle). Once this limit is reached, subsequent requests will raise a BackPressureError (for handles) or return an HTTP 503 status code (for HTTP requests). Defaults to -1 (no limit).</li>
+        <li><code><b>health_check_period_s</b></code> – Duration between health check calls for the replica. Defaults to 10s. The health check is by default a no-op Actor call to the replica, but you can define your own health check using the “check_health” method in your deployment that raises an exception when unhealthy.</li>
+        <li><code><b>health_check_timeout_s</b></code> – Duration in seconds, that replicas wait for a health check method to return before considering it as failed. Defaults to 30s.</li>
+        <li><code><b>graceful_shutdown_wait_loop_s</b></code> – Duration that replicas wait until there is no more work to be done before shutting down. Defaults to 2s.</li>
+        <li><code><b>graceful_shutdown_timeout_s</b></code> – Duration to wait for a replica to gracefully shut down before being forcefully killed. Defaults to 20s.</li>
+        <li><code><b>max_replicas_per_node</b></code> – The max number of replicas of this deployment that can run on a single node. Valid values are None (default, no limit) or an integer in the range of [1, 100]. This cannot be set together with placement_group_bundles.</li>
+    </ul>
+
+
+    <h3>
+        <code>
+            <a href="https://docs.ray.io/en/latest/serve/advanced-guides/advanced-autoscaling.html#optional-define-how-the-system-reacts-to-changing-traffic" target="_blank">
+                [Docs]
+            </a>
+            <pre>autoscaling_config</pre></code>
+    </h3>
+    <ul>
+        <li><code><b>upscale_delay_s</b></code><b> [default=30s]:</b>                                  This defines how long Serve waits before scaling up the number of replicas in your deployment. In other words, this parameter controls the frequency of upscale decisions. If the replicas are consistently serving more requests than desired for an upscale_delay_s number of seconds, then Serve scales up the number of replicas based on aggregated ongoing requests metrics. For example, if your service is likely to experience bursts of traffic, you can lower upscale_delay_s so that your application can react quickly to increases in traffic.</li>
+        <li><code><b>downscale_delay_s</b></code><b> [default=600s]:</b>                               This defines how long Serve waits before scaling down the number of replicas in your deployment. In other words, this parameter controls the frequency of downscale decisions. If the replicas are consistently serving less requests than desired for a downscale_delay_s number of seconds, then Serve scales down the number of replicas based on aggregated ongoing requests metrics. For example, if your application initializes slowly, you can increase downscale_delay_s to make the downscaling happen more infrequently and avoid reinitialization when the application needs to upscale again in the future.</li>
+        <li><code><b>upscale_smoothing_factor</b></code><b> [default_value=1.0] (DEPRECATED):</b>      This parameter is renamed to upscaling_factor. upscale_smoothing_factor will be removed in a future release.</li>
+        <li><code><b>downscale_smoothing_factor</b></code><b> [default_value=1.0] (DEPRECATED):</b>    This parameter is renamed to downscaling_factor. downscale_smoothing_factor will be removed in a future release.</li>
+        <li><code><b>upscaling_factor</b></code><b> [default_value=1.0]:</b>                           The multiplicative factor to amplify or moderate each upscaling decision. For example, when the application has high traffic volume in a short period of time, you can increase upscaling_factor to scale up the resource quickly. This parameter is like a “gain” factor to amplify the response of the autoscaling algorithm.</li>
+        <li><code><b>downscaling_factor</b></code><b> [default_value=1.0]:</b>                         The multiplicative factor to amplify or moderate each downscaling decision. For example, if you want your application to be less sensitive to drops in traffic and scale down more conservatively, you can decrease downscaling_factor to slow down the pace of downscaling.</li>
+        <li><code><b>metrics_interval_s</b></code><b> [default_value=10]:</b>                          This controls how often each replica sends reports on current ongoing requests to the autoscaler. Note that the autoscaler can't make new decisions if it doesn't receive updated metrics, so you most likely want to set metrics_interval_s to a value that is less than or equal to the upscale and downscale delay values. For instance, if you set upscale_delay_s = 3, but keep metrics_interval_s = 10, the autoscaler only upscales roughly every 10 seconds.</li>
+        <li><code><b>look_back_period_s</b></code><b> [default_value=30]:</b>                          This is the window over which the average number of ongoing requests per replica is calculated.</li>
+    </ul>
+
+    <ul>
+        <li>
+            <a href="https://docs.ray.io/en/latest/serve/production-guide/best-practices.html#load-shedding" target="_blank">
+                Load Shedding Docs
+            </a>
+        </li>
+        <li>
+            <a href="https://docs.ray.io/en/latest/serve/advanced-guides/advanced-autoscaling.html#attempt-2-autoscale-driver" target="_blank">
+                Autoscaling Example
+            </a>
+        </li>
+    </ul>
+
 </script>

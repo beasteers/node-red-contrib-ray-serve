@@ -10,10 +10,17 @@ module.exports = {
         users: [{
             username: ADMIN_USERNAME,
             password: ADMIN_PASSHASH,
-            permissions: "*"
+            permissions: ["*"]
         }]
-     },
-    //  httpNodeAuth: {user: ADMIN_USERNAME, pass: ADMIN_PASSHASH},
+    },
+
+    logging: {
+        console: {
+            level: "debug"
+        }
+    },
+    
+     httpNodeAuth: {user: ADMIN_USERNAME, pass: ADMIN_PASSHASH},
     //  httpStaticAuth: {user: ADMIN_USERNAME, pass: ADMIN_PASSHASH},
     editorTheme: {
         tours: false,

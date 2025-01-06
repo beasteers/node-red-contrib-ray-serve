@@ -15,6 +15,10 @@ Docs:
 npm i node-red-contrib-ray-serve
 ```
 
+In order to use this node, you must have a Ray cluster running. 
+
+Using the docker-compose test install below will give you a fully functioning system to experiment with.
+
 ## Test Install
 For full end-to-end testing (including a local ray cluster and grafana), you can use:
 
@@ -45,7 +49,7 @@ Manage Ray servers
 
 ![alt text](public/ray-config.png)
 
-Can potentially access the dashboard (by proxying) but I can't get it to require permissions so it's currently disabled.
+I was hoping to be able to expose the Ray dashboard using nodered's authentication, but I can't get it to require permissions correctly so it's currently disabled.
 
 ![alt text](public/ray-dash.png)
 
@@ -55,6 +59,8 @@ You can query available routes:
 ```bash
 http://ray:8000//-/routes
 ```
+
+> I don't know why the double slash `//-/routes` is necessary, but I tried getting rid of it and had no luck.
 
 ## Examples
 > Speed of running ML model on CPU: replicas >> batching > vanilla
