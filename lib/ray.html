@@ -60,41 +60,28 @@
 
 
 <script type="text/javascript">
-
-    // const extractServeDeployments = (code) => {
-    //     code = code.replace(/^\s+#.*/g, '');
-    //     const regex = /@serve\.deployment(\([^)]*\))?\s*(?:\s*[#@].*\n)*\s*class\s+(\w+):/g;
-    //     return [...code.matchAll(regex)].map(([, deploymentArgs, name]) => {
-    //         return { name, ...parseDeploymentArgs(deploymentArgs) };
-    //     });
-    // }
-
-    // const parseDeploymentArgs = (deploymentArgs) => {
-    //     // Remove parentheses and split by commas
-    //     // Convert key-value pairs into an object
-    //     return deploymentArgs ? deploymentArgs.slice(1, -1).split(/\s*,\s*/).reduce((acc, arg) => {
-    //         let [key, value] = arg.split('=');
-    //         key = key.match(/\w+\s*$/)?.[0] || key;
-    //         if (key && value) {
-    //             try {
-    //                 acc[key.trim()] = JSON.parse(value.trim());
-    //             } catch (e) {
-    //                 console.error(`Failed to parse deployment argument: ${key}=${value}`);
-    //             }
-    //         }
-    //         return acc;
-    //     }, {}) : {};
-    // }
-
-
     const sampleList = (list) => list[Math.floor(Math.random() * list.length)];
     const randomEndpoint = () => {
         const adjectives = [
-            'swift', 'bright', 'cosmic', 'dynamic', 'elastic', 'fluent', 'global', 'hyper', 'infinite', 'joyful', 
-            'kinetic', 'lunar', 'mighty', 'nebula', 'orbital', 'plasma', 'quantum', 'radiant', 'solar', 'turbo'];
+            'swift', 'bright', 'cosmic', 'dynamic', 'elastic', 'fluent', 'global', 'hyper', 'infinite', 'joyful',
+            'kinetic', 'lunar', 'mighty', 'nebula', 'orbital', 'plasma', 'quantum', 'radiant', 'solar', 'turbo',
+            'agile', 'blazing', 'celestial', 'shiny', 'dazzling', 'electric', 'futuristic', 'glowing', 
+            'harmonious', 'innovative', 'luminous', 'magnetic', 'neural', 'omniscient', 'orbiting', 'pulsating', 
+            'reactive', 'seamless', 'shimmering', 'sonic', 'spectral', 'supercharged', 'transcendent', 'ultra', 
+            'vibrant', 'virtual', 'volatile', 'weightless', 'zealous', 'zippy', 'adaptive', 'amplified', 
+            'boundless', 'cascading', 'digital', 'endless', 'ethereal', 'evolving', 'gravitational', 'interstellar', 
+            'modular', 'nanotech', 'oblique', 'perennial', 'revolutionary', 'soaring', 'stellar', 'unified',
+        ];
+
         const nouns = [
-            'api', 'node', 'service', 'endpoint', 'route', 'gateway', 'portal', 'hub', 'nexus', 'core', 
-            'engine', 'matrix', 'sphere', 'vertex', 'circuit', 'pulse', 'stream', 'grid', 'net', 'link'];
+            'api', 'node', 'service', 'endpoint', 'route', 'gateway', 'portal', 'hub', 'nexus', 'core',
+            'engine', 'matrix', 'sphere', 'vertex', 'circuit', 'pulse', 'stream', 'grid', 'net', 'link',
+            'accelerator', 'array', 'backbone', 'beacon', 'cluster', 'conduit', 'fabric', 'flux', 'hive', 'horizon',
+            'kernel', 'lattice', 'mesh', 'module', 'oscillator', 'path', 'pipeline', 'point', 'processor', 'radar',
+            'reactor', 'scaffold', 'segment', 'shell', 'spectrum', 'switch', 'topology', 'vector', 'warp', 'wave',
+            'web', 'wire', 'domain', 'interface', 'logic', 'plane', 'protocol', 'relay', 'sequence', 'system',
+            'terrain', 'token', 'wavelength', 'webbing', 'zone', 'band', 'cartridge', 'channel', 'chip', 'sky',
+        ];
         return `${sampleList(adjectives)}-${sampleList(nouns)}`;
     }
 
@@ -131,21 +118,37 @@ class HelloWorld:
                 
 app = HelloWorld.bind()`
 
+    const getUniqueValues = (node, key) => {
+        let endpoints = {};
+        RED.nodes.eachNode(n => {
+            if(n.type !== "ray serve" || !n.server || n.server !== node.server || n.id === node.id) return;
+            endpoints[key(n)] = n.id;
+        })
+        return endpoints;
+    }
+
+    const cleanRouteName = (route_prefix) => route_prefix.replace(/^\//g, '').replace(/\//g, ' ');
+    const nodeName = (n) => n.name || cleanRouteName(n.route_prefix);
+
     RED.nodes.registerType('ray serve', {
         category: 'function',
         color: '#65a9fc',
         inputs: 1,
         // outputs: 1,
         outputs: 2,
-        outputLabels: ['result', 'overflow'],
+        outputLabels: ['result', 'error/backpressure'],
         icon: "ray-logo.svg",
         defaults: {
             server: {
 				type: 'rayConfig',
 				required: true,
 			},
-            name: { value: '' },
-            route_prefix: { value: '', required: true },
+            name: { value: '', validate: function(v) {
+                return !getUniqueValues(this, n=>nodeName(n))[v || cleanRouteName(this.route_prefix)];
+            } },
+            route_prefix: { value: '', required: true, validate: function(v) {
+                return !getUniqueValues(this, n=>n.route_prefix)[v];
+            } },
             variable_name: { value: 'app' },
             // runtime_env: { value: {} },
             // container: { value: '' },
@@ -153,10 +156,8 @@ app = HelloWorld.bind()`
             dependencies: { value: [] },
             env_vars: { value: [] },
             code: { value: code.trim() },
-            // deployments: { value: extractServeDeployments(code).map(({name}) => ({name})) },
-            // deploymentArgs: { value: {} },
-            maxConcurrent: { value: 20 },
-            maxBacklogOverflow: { value: 1000 },
+            maxConcurrent: { value: 32 },
+            maxBacklogOverflow: { value: 512 },
             // Add default values for other fields as needed
         },
         label: function () {
@@ -173,33 +174,51 @@ app = HelloWorld.bind()`
                 window.open(`${url}/#/serve/applications/${name}`, '_blank').focus();
             });
 
-            node.otherEndpoints = {};
-            RED.nodes.eachNode(n => {
-                if(n.type !== "ray serve" || !n.server || n.id === node.id) return;
-                node.otherEndpoints[n.server] = node.otherEndpoints[n.server] || {};
-                node.otherEndpoints[n.server][n.route_prefix] = n.id;
-            })
-            console.log(node.otherEndpoints);
+            // node.otherEndpoints = {};
+            // RED.nodes.eachNode(n => {
+            //     if(n.type !== "ray serve" || !n.server || n.id === node.id) return;
+            //     node.otherEndpoints[n.server] = node.otherEndpoints[n.server] || {};
+            //     node.otherEndpoints[n.server][n.route_prefix] = n.id;
+            // })
+            // console.log(node.otherEndpoints);
+            // if (node.otherEndpoints[node.server]?.[node.route_prefix]) {
+            //     let parts = node.route_prefix.split('/');
+            //     let i = parseInt(parts[parts.length - 1]);
+            //     if (!isNaN(i)) {
+            //         parts[parts.length - 1] = i + 1;
+            //     } else {
+            //         parts.push(1);
+            //     }
+            //     node.route_prefix = parts.join('/');
+            // }
 
-            $('#node-input-route_prefix').val(this.route_prefix || `/${randomEndpoint()}`);
-            $('#node-input-route_prefix').on('keyup', function() {
-                let route = $(this).val();
-                let server = $('#node-input-server').val();
-                // console.log(route, server, node.otherEndpoints[server]?.[route]);
-                if(node.otherEndpoints[server]?.[route] && node.otherEndpoints[server]?.[route] !== node.id) {
-                    $(this).addClass("input-error");
-                    $(this).next('.route-prefix-error').text('Endpoint must be unique.');
-                } else {
-                    $(this).removeClass("input-error");
-                    $(this).next('.route-prefix-error').text('');
-                }
-            });
+            // function validateRoute() {
+            //     let route = $(this).val();
+            //     let server = $('#node-input-server').val();
+            //     // console.log(route, server, node.otherEndpoints[server]?.[route]);
+            //     console.log(node.otherEndpoints[server]?.[route]);
+            //     console.log(node.id);
+            //     console.log(route);
+            //     if(node.otherEndpoints[server]?.[route] && node.otherEndpoints[server]?.[route] !== node.id) {
+            //         $(this).addClass("input-error");
+            //         $(this).next('.route-prefix-error').text('Endpoint must be unique.');
+            //         console.log('endpoint must be unique');
+            //     } else {
+            //         $(this).removeClass("input-error");
+            //         $(this).next('.route-prefix-error').text('');
+            //         console.log('endpoint is unique');
+            //     }
+            // }
+            // $('#node-input-route_prefix').val(this.route_prefix || `/${randomEndpoint()}`);
+            // $('#node-input-route_prefix').on('keyup', validateRoute);
+            
+
             
             this.editor = RED.editor.createEditor({
                 id: 'node-input-ray-serve-editor',
                 mode: 'ace/mode/python',
                 value: this.code || "",
-                height: '700px',
+                // height: '700px',
                 // stateId: stateId,
                 focus: true,
                 // extraLibs: extraLibs
@@ -232,44 +251,6 @@ app = HelloWorld.bind()`
                 this.envList.editableList('addItem', data)
             }
 
-            // this.deploymentList = $("#node-input-deployments-x").editableList({
-            //     addItem: function(row, index, { name, ...value }) {
-            //         let val = JSON.stringify(value, null, 2);
-            //         $(`<input class='node-input-name' type="text" placeholder="Deployment Name" />`).appendTo(row).attr('value', name)
-            //         $(`<input class='node-input-value' placeholder="value" />`).appendTo(row).attr('value', val).typedInput({
-            //             type:"json",
-            //             types: ['json'],
-            //         });
-            //     },
-            //     removable: true,
-            // });
-            // for(let data of this.deployments) {
-            //     this.deploymentList.editableList('addItem', data)
-            // }
-
-            // const renderDeployments = () => {
-            //     let code = this.editor.getValue();
-            //     let deployments = extractServeDeployments(code);
-            //     let oldDeployments = this.deploymentList.editableList('items').toArray().reduce((acc, item) => {
-            //         let name = $(item).find('.node-input-name').val();
-            //         let value = $(item).find('.node-input-value').typedInput('value');
-            //         acc[name] = JSON.parse(value || '{}');
-            //         return acc;
-            //     }, {});
-                
-            //     this.deploymentList.editableList('empty');
-            //     for(let {name, ...data} of deployments) {
-            //         this.deploymentList.editableList('addItem', {name, ...oldDeployments?.[name] });
-            //     }
-            //     node.deploymentArgs = {...node.deploymentArgs, ...oldDeployments};
-            // }
-            // renderDeployments();
-            // this.editor.onDidChangeModelContent((event) => {
-            //     clearTimeout(this.debounceTimer);
-            //     this.debounceTimer = setTimeout(renderDeployments, 500);
-            // });
-
-
             // Tabs
 
             var tabs = RED.tabs.create({
@@ -279,11 +260,6 @@ app = HelloWorld.bind()`
                     $("#" + tab.id).show();
                 }
             });
-            // tabs.addTab({
-            //     id: "func-tab-config",
-            //     iconClass: "fa fa-cog",
-            //     label: that._("function.label.setup")
-            // });
             tabs.addTab({
                 id: "ray-tab-app",
                 label: "Application"
@@ -312,20 +288,9 @@ app = HelloWorld.bind()`
                 let value = $(this).find(".node-input-value").typedInput('value');
                 key && node.env_vars.push({ key, type, value });
             })
-            // node.deployments = [];
-            // $("#node-input-deployments-x").editableList('items').each(function(i) {
-            //     let name = $(this).find(".node-input-name").val();
-            //     let value = $(this).find(".node-input-value").typedInput('value');
-            //     value = value.replace(/^\s+\/\/.*/g, '');
-            //     let data = JSON.parse(value || '{}');
-            //     name && node.deployments.push({ name, ...data });
-            // })
 
-            // node.deployments = extractServeDeployments(node.code);
             delete this.pipList;
             delete this.envList;
-            // delete this.deploymentList;
-
         },
         oneditcancel: function() {
             this.editor.destroy();
@@ -334,8 +299,35 @@ app = HelloWorld.bind()`
     });
 </script>
 
+
+<!-- 
+
+-----------------------------------------------------------------------
+                            Form UI                                  
+-----------------------------------------------------------------------
+
+-->
+
+
+
 <script type="text/html" data-template-name="ray serve">
     <style>
+        #ray-tabs-content {
+            height: 100%;
+            min-height: 350px;
+            max-height: calc(100% - 95px);
+        }
+        #ray-tabs-content #ray-tab-app {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: stretch;
+        }
+
+        #ray-tabs-content .node-text-editor {
+            flex-grow: 1;
+        }
+
         #ray-tabs-content .red-ui-editableList-container {
             padding: 0px;
             border: 0;
@@ -397,6 +389,9 @@ app = HelloWorld.bind()`
         .route-prefix-error {
             font-weight: 900;
             color: red;
+            display: none;
+        }
+        #node-input-route_prefix.input-error + .route-prefix-error {
             display: block;
         }
 
@@ -415,22 +410,32 @@ app = HelloWorld.bind()`
             <div class="form-row">
                 <h2>
                     Learn how to use 
-                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/index.html">Ray Serve</a>
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/index.html" title="Ray Serve Docs. A scalable model serving library for building online inference APIs.">Ray Serve</a>
                 </h2>
                 <p>
-                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/getting_started.html">Get Started</a> &nbsp;&nbsp;
-                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/key-concepts.html">Concepts</a> &nbsp;&nbsp;
-                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/develop-and-deploy.html">Tutorial</a> &nbsp;&nbsp;
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/getting_started.html" title="Quick look at the basics of Ray Serve.">Get Started</a> &nbsp;&nbsp;
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/key-concepts.html" title="Explaining Ray Serve concepts like deployments and applications.">Concepts</a> &nbsp;&nbsp;
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/develop-and-deploy.html" title="Building an ML application">Tutorial</a> &nbsp;&nbsp;
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/advanced-guides/dyn-req-batch.html" title="Request batching to handle multiple requests at once.">Batching</a> &nbsp;&nbsp;
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/advanced-guides/performance.html#serve-perf-tuning" title="Performance tuning tips">Performance</a> &nbsp;&nbsp;
+                    <a target="_blank" href="https://docs.ray.io/en/latest/serve/configure-serve-deployment.html#configurable-parameters" title="serve.deployment() arguments">serve.deployment(...)</a> &nbsp;&nbsp;
                     
                 </p>
             </div>
 
-
-            <div id="func-tab-body">
-                <div class="form-row node-text-editor-row" style="position:relative">
-                    <div style="height: 900px; min-height:150px;" class="node-text-editor" id="node-input-ray-serve-editor" ></div>
+            <div class="form-row">
+                <div>
+                    <input type="text" id="node-input-route_prefix" placeholder="What should the URL endpoint be?" title="This is the URL that nodered will call to run this function." />
+                    <small class="route-prefix-error">Endpoint must be unique.</small>
                 </div>
             </div>
+
+            <!-- height: 900px;  -->
+            <div style="min-height:150px;" class="node-text-editor" id="node-input-ray-serve-editor" ></div>
+            <!-- <div id="func-tab-body">
+                <div class="form-row node-text-editor-row" style="position:relative">
+                </div>
+            </div> -->
         </div>
 
         <div id="ray-tab-deps" style="display:none">
@@ -445,29 +450,37 @@ app = HelloWorld.bind()`
                     <button id="ray-dashboard-link">Ray Server</button>
                 </label>
                 <input type="text" id="node-input-server" />
-                <small>What Ray Server should this deploy to?</small>
+                <div>
+                    <small>What Ray Server should this deploy to?</small>
+                </div>
             </div>
             <div class="form-row">
                 <label for="node-input-name">
                     <b>App Name</b>
                 </label>
                 <input type="text" id="node-input-name" />
-                <small>Give your app a name.</small>
+                <div>
+                    <small>Give your app a name. Defaults to the URL.</small>
+                </div>
             </div>
-            <div class="form-row">
+            <!-- <div class="form-row">
                 <label for="node-input-route_prefix">
                     <b>App URL</b>
                 </label>
                 <div>
                     <input type="text" id="node-input-route_prefix" placeholder="What should the URL endpoint be?" />
-                    <small>This is the URL that nodered will call to run this function.</small>
-                    <small class="route-prefix-error"></small>
+                    <div>
+                        <small>This is the URL that nodered will call to run this function.</small>
+                        <small class="route-prefix-error"></small>
+                    </div>
                 </div>
-            </div>
+            </div> -->
             <div class="form-row">
                 <p>Deployment variable: (e.g. <code><b>app</b> = MyApp.bind()</code>)</p>
                 <code>serve.run(<input type="text" placeholder='e.g. app' id="node-input-variable_name" />)</code>
-                <small>So that Ray knows which object to call.</small>
+                <div>
+                    <small>So that Ray knows which object to call.</small>
+                </div>
             </div>
 
             <!-- <div class="form-row">
@@ -476,22 +489,10 @@ app = HelloWorld.bind()`
                 </label>
                 <input type="text" id="node-input-container" />
             </div> -->
-            
-            <!-- <div class="form-row node-input-list-row">
-                <h3>
-                    Deployments [<a target="_blank" href="https://docs.ray.io/en/latest/serve/configure-serve-deployment.html">docs</a>]
-                </h3>
-                <p>
-                    The list of deployments detected in your Python code. You can modify the deployment configuration here. 
-                    Anything inside DETECTED_FROM_PYTHON is automatically detected from your Python code.
-                </p>
-                <ol id="node-input-deployments-x"></ol>
-            </div>
-            <hr /> -->
             <div class="form-row">
                 <h2>Requirements:</h2>
                 <p>
-                    Your Ray application might depend on Python packages (for example, pendulum or requests) via import statements.
+                    Your Ray application might depend on Python packages from <a target="_blank" href="https://pypi.org">PyPI</a> or <a target="_blank" href="https://docs.conda.io/en/latest/">conda</a>. (e.g. numpy or requests).
 
                     You can specify these dependencies here. Ray will install them in the environment where your application runs.
                 </p>
@@ -528,12 +529,18 @@ app = HelloWorld.bind()`
                     <span>Max Concurrent Requests</span>
                 </label>
                 <input type="text" id="node-input-maxConcurrent" placeholder="20" />
+                <div>
+                    <small>How many requests can be processed at once before we start adding messages to the backlog?</small>
+                </div>
             </div>
             <div class="form-row">
                 <label for="node-input-name">
                     <span>Max Backlog Length</span>
                 </label>
                 <input type="text" id="node-input-maxBacklogOverflow" placeholder="1000" />
+                <div>
+                    <small>How many messages can be queued up before we start rejecting new messages? Rejected messages will be sent via the second output with a <code>backpressure=true</code> flag.</small>
+                </div>
             </div>
             <!-- <div class="form-row">
                 <label for="node-input-mimetype">
@@ -552,6 +559,17 @@ app = HelloWorld.bind()`
     </div>
     
 </script>
+
+
+
+<!-- 
+
+-----------------------------------------------------------------------
+                                 Docs                                  
+-----------------------------------------------------------------------
+
+-->
+
 
 
 <script type="text/html" data-help-name="ray serve">

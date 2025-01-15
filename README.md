@@ -1,6 +1,6 @@
 # Deploy Ray Serve Applications with NodeRed.
 
-> This is a prototype - I look forward to hearing your experience, feedback, and ideas for improvements.
+Scalable, Distributed Python in Node Red? Visual Programming for Ray? Node Red distributing ML workloads across multiple nodes in a cluster? 😱
 
 Ray is a powerful distributed computing framework for Python that allows you to easily scale your applications. By pairing Ray with Node-RED, you can take advantage of Ray's distributed capabilities to handle large workloads and parallelize tasks, while leaving Node-RED to do what it does best - IO and lightweight data plumbing.
 
@@ -9,7 +9,14 @@ Docs:
  * [Ray Serve Docs](https://docs.ray.io/en/latest/serve/index.html): Run Ray with HTTP endpoints
  * [Ray Serve Examples](https://docs.ray.io/en/latest/serve/examples.html): Examples of deploying ML Inference to Ray Serve
 
+Current Issues:
+ * For the most part things work, but we should work more on the behavior when a the Ray application doesn't deploy correctly
+    * Create an option to dictate what happens to messages when Ray cannot be connected to - should they be queued? Should they be rerouted?
+ * Getting better error responses if Deployments fail due to code bugs (e.g. getting python logs to show tracebacks)
+
 ## Install
+
+> This is a prototype - I look forward to hearing your experience, feedback, and ideas for improvements.
 
 ```bash
 npm i node-red-contrib-ray-serve

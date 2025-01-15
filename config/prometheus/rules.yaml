@@ -1,0 +1,33 @@
+groups:
+  - name: ray-cluster-main-staging-gcs.rules
+    interval: 30s
+    rules:
+      - record: ray_gcs_availability_30d
+        expr: |
+          (
+            100 * (
+                    sum(
+                         rate(
+                               ray_gcs_update_resource_usage_time_bucket{container="nr-ray-cluster", le="20.0"}[30d]
+                         )
+                    )
+                    /
+                    sum(
+                         rate(
+                               ray_gcs_update_resource_usage_time_count{container="nr-ray-cluster"}[30d]
+                         )
+                    )
+            )
+          )
+
+      - alert: MissingMetricRayGlobalControlStore
+        expr: |
+          (
+           absent(ray_gcs_update_resource_usage_time_bucket) == 1
+          )
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Ray GCS is not emitting metrics anymore
+          description: Ray GCS is not emitting any metrics for Resource Update requests

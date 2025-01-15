@@ -8,6 +8,8 @@ CREATE TABLE data (
     rayQueueCountCurrent INTEGER,
     rayQueueCountBacklog INTEGER,
     responseTime INTEGER,
+    fcount INTEGER,
+    rejectionCause TEXT,
     nReplicas INTEGER
 );
 

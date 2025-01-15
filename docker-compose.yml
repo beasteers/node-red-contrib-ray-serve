@@ -18,23 +18,32 @@ services:
       - .:/usr/src/node-red/node-red-contrib-ray-jobs
 
   ray:
-    image: rayproject/ray:nightly-cpu-aarch64 #-ml
+    # image: rayproject/ray:nightly-cpu-aarch64 #-ml
+    image: rayproject/ray:2.39.0.5a6c33-cpu-aarch64
     container_name: nr-ray-cluster
     ports:
       # - 10001:10001  # client
       # - 6379:6379  # gcs
       - 8265:8265  # dashboard
       - 8000:8000  # serve
+      # - 8085:8080  # metrics
+    expose:
+      - "8080"  # metrics
     privileged: true
-    command: bash -c "ray start --dashboard-host=0.0.0.0 --head --block"
+    command: bash -c "ray start --dashboard-host=0.0.0.0 --metrics-export-port=8080 --head --block"
     volumes:
       - /dev/shm:/dev/shm
-    shm_size: 2g
+      - /tmp/ray/ray:/tmp/ray
+    shm_size: 3g
     # deploy:
     #   resources:
     #     limits:
     #       cpus: '1'
     #       memory: '2g'
+    environment:
+      RAY_GRAFANA_IFRAME_HOST: http://127.0.0.1:3000
+      RAY_GRAFANA_HOST: http://grafana:3000
+      RAY_PROMETHEUS_HOST: http://prometheus:9090
 
   # --------------------------------- Testing -------------------------------- #
 
@@ -42,9 +51,12 @@ services:
     image: grafana/grafana:latest
     container_name: nr-grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      # GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Editor"
     ports:
       - "3000:3000"
     volumes:
@@ -62,3 +74,14 @@ services:
       - ./data-postgres:/home/postgres/pgdata
     ports:
       - "5432:5432"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./config/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - ./config/prometheus/rules.yaml:/etc/prometheus/rules.yaml
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+      - '--storage.tsdb.path=/prometheus'

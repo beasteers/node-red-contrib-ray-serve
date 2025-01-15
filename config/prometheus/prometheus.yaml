@@ -1,0 +1,31 @@
+# prometheus.yml
+global:
+  scrape_interval: 30s
+
+rule_files:
+  - "rules.yaml"
+
+scrape_configs:
+  # - job_name: 'ray-workers'
+  #   metrics_path: /metrics
+  #   static_configs:
+  #     - targets:
+  #         - ray-worker-1:8080
+  #         - ray-worker-2:8080
+  #       labels:
+  #         ray_io_node_type: worker
+  #         ray_io_cluster: main
+
+  - job_name: 'ray'
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - ray:8080
+        labels:
+          ray_io_node_type: head
+          ray_io_cluster: main
+
+    # Additional ports for head node metrics
+    metric_relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_ray_io_cluster]
+        target_label: ray_io_cluster
